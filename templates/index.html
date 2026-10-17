@@ -1,0 +1,1116 @@
+<!doctype html>
+<html lang="en">
+
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>AI Code Reviewer - Analyze and Improve Your Code with AI</title>
+
+  <!-- CodeMirror CSS -->
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.18/codemirror.min.css">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.18/addon/edit/matchbrackets.min.css">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.18/theme/dracula.min.css">
+
+  <style>
+    :root {
+      --bg-page: #f9fafb;
+      --bg-card: #ffffff;
+      --bg-input: #ffffff;
+      --text-main: #111827;
+      --text-muted: #6b7280;
+      --border-color: #d1d5db;
+      --accent: #1a56db;
+      --accent-hover: #1646b5;
+      --gutter-bg: #f8fafc;
+      --gutter-border: #e2e8f0;
+      --gutter-num: #94a3b8;
+      --btn-sec-bg: #f3f4f6;
+      --btn-sec-hover: #e5e7eb;
+      --card-warn-bg: #fffbeb;
+      --card-warn-border: #fcd34d;
+      --card-warn-text: #92400e;
+      --line-flash-bg: rgba(254, 240, 138, 0.45);
+    }
+
+    body.dark-mode {
+      --bg-page: #0f172a;
+      --bg-card: #1e293b;
+      --bg-input: #1e293b;
+      --text-main: #f8fafc;
+      --text-muted: #94a3b8;
+      --border-color: #334155;
+      --accent: #3b82f6;
+      --accent-hover: #2563eb;
+      --gutter-bg: #1e293b;
+      --gutter-border: #334155;
+      --gutter-num: #64748b;
+      --btn-sec-bg: #334155;
+      --btn-sec-hover: #475569;
+      --card-warn-bg: #451a03;
+      --card-warn-border: #78350f;
+      --card-warn-text: #fde68a;
+      --line-flash-bg: rgba(234, 179, 8, 0.35);
+    }
+
+    * {
+      box-sizing: border-box;
+    }
+
+    body {
+      font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      max-width: 860px;
+      margin: 2rem auto;
+      padding: 0 1.25rem 3rem;
+      background: var(--bg-page);
+      color: var(--text-main);
+      transition: background-color 0.2s ease, color 0.2s ease;
+    }
+
+    .header-row {
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-start;
+      margin-bottom: 1.25rem;
+    }
+
+    h1 {
+      font-size: 1.65rem;
+      margin: 0 0 0.25rem;
+      font-weight: 700;
+      letter-spacing: -0.02em;
+    }
+
+    .sub {
+      color: var(--text-muted);
+      margin: 0;
+      font-size: 0.95rem;
+    }
+
+    .theme-toggle-btn {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.4rem;
+      background: var(--btn-sec-bg);
+      color: var(--text-main);
+      border: 1px solid var(--border-color);
+      border-radius: 8px;
+      padding: 0.45rem 0.85rem;
+      font-size: 0.85rem;
+      cursor: pointer;
+      font-weight: 500;
+      transition: all 0.15s ease;
+    }
+
+    .theme-toggle-btn:hover {
+      background: var(--btn-sec-hover);
+    }
+
+    form {
+      display: flex;
+      flex-direction: column;
+      gap: 0.75rem;
+      background: var(--bg-card);
+      padding: 1.25rem;
+      border: 1px solid var(--border-color);
+      border-radius: 10px;
+      box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
+    }
+
+    .form-toolbar {
+      display: flex;
+      gap: 0.5rem;
+      align-items: center;
+      flex-wrap: wrap;
+    }
+
+    select {
+      padding: 0.5rem 0.75rem;
+      font-size: 0.95rem;
+      border: 1px solid var(--border-color);
+      border-radius: 6px;
+      background: var(--bg-input);
+      color: var(--text-main);
+      min-width: 135px;
+      cursor: pointer;
+    }
+
+    .btn-secondary {
+      background: var(--btn-sec-bg);
+      color: var(--text-main);
+      border: 1px solid var(--border-color);
+      padding: 0.5rem 0.85rem;
+      font-size: 0.85rem;
+      border-radius: 6px;
+      cursor: pointer;
+      font-weight: 500;
+      transition: background 0.15s ease;
+    }
+
+    .btn-secondary:hover {
+      background: var(--btn-sec-hover);
+    }
+
+    .count {
+      margin-left: auto;
+      color: var(--text-muted);
+      font-size: 0.85rem;
+      font-variant-numeric: tabular-nums;
+    }
+
+    .count.warn {
+      color: #dc2626;
+      font-weight: 600;
+    }
+
+    /* CodeMirror integration */
+    .editor-wrapper {
+      position: relative;
+      border-radius: 6px;
+      overflow: hidden;
+      border: 1px solid var(--border-color);
+    }
+
+    .CodeMirror {
+      font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", monospace;
+      font-size: 0.92rem;
+      line-height: 1.5;
+      height: 250px;
+      resize: vertical;
+      background: var(--bg-input);
+      color: var(--text-main);
+    }
+
+    .CodeMirror-focused {
+      outline: none;
+    }
+
+    .editor-wrapper:focus-within {
+      border-color: var(--accent);
+      box-shadow: 0 0 0 2px rgba(26, 86, 219, 0.2);
+    }
+
+    .CodeMirror-gutters {
+      background: var(--gutter-bg);
+      border-right: 1px solid var(--gutter-border);
+    }
+
+    .CodeMirror-linenumber {
+      color: var(--gutter-num);
+      font-size: 0.82rem;
+      padding: 0 8px 0 5px;
+    }
+
+    .line-flash {
+      background-color: var(--line-flash-bg) !important;
+      transition: background-color 1.2s ease;
+    }
+
+    /* Enhanced Syntax Highlighting for Light Theme */
+    .cm-s-default span.cm-keyword { color: #cf222e; font-weight: 600; }
+    .cm-s-default span.cm-def { color: #8250df; font-weight: 600; }
+    .cm-s-default span.cm-variable { color: #24292f; }
+    .cm-s-default span.cm-variable-2 { color: #953800; }
+    .cm-s-default span.cm-variable-3 { color: #0550ae; }
+    .cm-s-default span.cm-string { color: #0a3069; }
+    .cm-s-default span.cm-number { color: #0550ae; font-weight: 500; }
+    .cm-s-default span.cm-comment { color: #6e7781; font-style: italic; }
+    .cm-s-default span.cm-operator { color: #cf222e; }
+    .cm-s-default span.cm-builtin { color: #0969da; }
+    .cm-s-default span.cm-meta { color: #cf222e; font-weight: 600; }
+    .cm-s-default span.cm-type { color: #953800; font-weight: 600; }
+
+    .form-actions {
+      display: flex;
+      gap: 0.75rem;
+      align-items: center;
+      margin-top: 0.25rem;
+    }
+
+    button#btn {
+      padding: 0.65rem 1.4rem;
+      font-size: 0.98rem;
+      background: var(--accent);
+      color: #ffffff;
+      border: none;
+      border-radius: 8px;
+      cursor: pointer;
+      font-weight: 600;
+      transition: background 0.15s ease, opacity 0.15s ease;
+    }
+
+    button#btn:hover:not(:disabled) {
+      background: var(--accent-hover);
+    }
+
+    button:disabled {
+      opacity: 0.6;
+      cursor: not-allowed;
+    }
+
+    #result {
+      margin-top: 1.5rem;
+    }
+
+    .status {
+      padding: 1rem 1.25rem;
+      background: var(--bg-card);
+      border: 1px solid var(--border-color);
+      border-radius: 8px;
+      color: var(--text-main);
+      display: flex;
+      align-items: center;
+      gap: 0.75rem;
+    }
+
+    .status.error {
+      border-color: #fca5a5;
+      background: #fef2f2;
+      color: #991b1b;
+    }
+
+    body.dark-mode .status.error {
+      background: #450a0a;
+      border-color: #7f1d1d;
+      color: #fecaca;
+    }
+
+    .warn {
+      padding: 0.75rem 1rem;
+      background: var(--card-warn-bg);
+      border: 1px solid var(--card-warn-border);
+      border-radius: 8px;
+      margin-bottom: 1rem;
+      color: var(--card-warn-text);
+      font-size: 0.92rem;
+    }
+
+    .overview-wrapper {
+      background: var(--bg-card);
+      border: 1px solid var(--border-color);
+      border-radius: 8px;
+      padding: 1.25rem;
+      margin-bottom: 1.25rem;
+      box-shadow: 0 1px 2px rgba(0, 0, 0, 0.04);
+    }
+
+    .overview {
+      display: flex;
+      gap: 1.25rem;
+      align-items: center;
+    }
+
+    .rating {
+      flex: none;
+      width: 72px;
+      height: 72px;
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 1.45rem;
+      font-weight: 700;
+      color: #ffffff;
+      box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+    }
+
+    .rating.good {
+      background: #16a34a;
+    }
+
+    .rating.ok {
+      background: #d97706;
+    }
+
+    .rating.bad {
+      background: #dc2626;
+    }
+
+    .overview p {
+      margin: 0;
+      line-height: 1.55;
+      font-size: 0.96rem;
+    }
+
+    .result-toolbar {
+      display: flex;
+      gap: 0.5rem;
+      margin-top: 1rem;
+      padding-top: 0.75rem;
+      border-top: 1px solid var(--border-color);
+    }
+
+    h2 {
+      font-size: 1.15rem;
+      margin: 1.5rem 0 0.6rem;
+      font-weight: 600;
+    }
+
+    h2 .n {
+      color: var(--text-muted);
+      font-weight: 400;
+      font-size: 0.95rem;
+    }
+
+    .none {
+      color: var(--text-muted);
+      font-style: italic;
+      padding: 0.4rem 0;
+      font-size: 0.92rem;
+    }
+
+    .card {
+      background: var(--bg-card);
+      border: 1px solid var(--border-color);
+      border-left-width: 5px;
+      border-radius: 8px;
+      padding: 0.85rem 1.15rem;
+      margin-bottom: 0.65rem;
+      box-shadow: 0 1px 2px rgba(0, 0, 0, 0.03);
+    }
+
+    .card.high {
+      border-left-color: #dc2626;
+    }
+
+    .card.medium {
+      border-left-color: #d97706;
+    }
+
+    .card.low {
+      border-left-color: #2563eb;
+    }
+
+    .card-head {
+      display: flex;
+      gap: 0.5rem;
+      align-items: center;
+      flex-wrap: wrap;
+    }
+
+    .card-head strong {
+      flex: 1;
+      font-size: 0.98rem;
+    }
+
+    .pill {
+      font-size: 0.72rem;
+      padding: 0.15rem 0.55rem;
+      border-radius: 999px;
+      background: var(--btn-sec-bg);
+      text-transform: uppercase;
+      letter-spacing: 0.04em;
+      font-weight: 600;
+    }
+
+    .pill.high {
+      background: #fee2e2;
+      color: #991b1b;
+    }
+
+    .pill.medium {
+      background: #fef3c7;
+      color: #92400e;
+    }
+
+    .pill.low {
+      background: #dbeafe;
+      color: #1e40af;
+    }
+
+    .pill.line-pill {
+      cursor: pointer;
+      user-select: none;
+      background: #e2e8f0;
+      color: #334155;
+      transition: all 0.15s ease;
+    }
+
+    body.dark-mode .pill.line-pill {
+      background: #334155;
+      color: #cbd5e1;
+    }
+
+    .pill.line-pill:hover {
+      background: #cbd5e1;
+      color: #0f172a;
+      transform: translateY(-1px);
+    }
+
+    body.dark-mode .pill.line-pill:hover {
+      background: #475569;
+      color: #f8fafc;
+    }
+
+    .card p {
+      margin: 0.45rem 0 0;
+      line-height: 1.5;
+      font-size: 0.92rem;
+    }
+
+    .fix {
+      color: #047857;
+      font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+      font-size: 0.88rem;
+      background: rgba(16, 185, 129, 0.08);
+      padding: 0.4rem 0.6rem;
+      border-radius: 4px;
+      margin-top: 0.5rem !important;
+      word-break: break-word;
+    }
+
+    body.dark-mode .fix {
+      color: #34d399;
+      background: rgba(16, 185, 129, 0.15);
+    }
+
+    #history-wrap {
+      margin-top: 2.25rem;
+    }
+
+    .hist-item {
+      display: flex;
+      gap: 0.75rem;
+      align-items: center;
+      background: var(--bg-card);
+      border: 1px solid var(--border-color);
+      border-radius: 8px;
+      padding: 0.65rem 0.9rem;
+      margin-bottom: 0.5rem;
+      cursor: pointer;
+      transition: border-color 0.15s ease, transform 0.1s ease;
+    }
+
+    .hist-item:hover,
+    .hist-item:focus-visible {
+      border-color: var(--accent);
+      outline: none;
+      transform: translateX(2px);
+    }
+
+    .hist-item .mini {
+      flex: none;
+      min-width: 44px;
+      text-align: center;
+      font-weight: 700;
+      color: #ffffff;
+      border-radius: 6px;
+      padding: 0.25rem 0.45rem;
+      font-size: 0.85rem;
+    }
+
+    .mini.good {
+      background: #16a34a;
+    }
+
+    .mini.ok {
+      background: #d97706;
+    }
+
+    .mini.bad {
+      background: #dc2626;
+    }
+
+    .hist-main {
+      flex: 1;
+      min-width: 0;
+    }
+
+    .hist-main .t {
+      font-size: 0.8rem;
+      color: var(--text-muted);
+      margin-bottom: 0.15rem;
+    }
+
+    .hist-main .s {
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      font-size: 0.9rem;
+    }
+
+    .del {
+      background: transparent;
+      color: var(--text-muted);
+      padding: 0.2rem 0.55rem;
+      border: none;
+      border-radius: 6px;
+      font-size: 1.25rem;
+      cursor: pointer;
+      line-height: 1;
+      transition: all 0.15s ease;
+    }
+
+    .del:hover {
+      background: #fee2e2 !important;
+      color: #991b1b;
+    }
+
+    body.dark-mode .del:hover {
+      background: #7f1d1d !important;
+      color: #fecaca;
+    }
+
+    .stats-bar {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(170px, 1fr));
+      gap: 0.75rem;
+      margin-bottom: 1.25rem;
+    }
+
+    @media (min-width: 740px) {
+      .stats-bar {
+        grid-template-columns: 1fr 1fr 1.1fr 1.7fr;
+      }
+    }
+
+    .stat-card {
+      background: var(--bg-card);
+      border: 1px solid var(--border-color);
+      border-radius: 8px;
+      padding: 0.85rem 1rem;
+      text-align: center;
+      box-shadow: 0 1px 2px rgba(0, 0, 0, 0.03);
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+    }
+
+    .stat-val {
+      font-size: 1.45rem;
+      font-weight: 700;
+      color: var(--accent);
+      line-height: 1.2;
+    }
+
+    .stat-lbl {
+      font-size: 0.75rem;
+      color: var(--text-muted);
+      text-transform: uppercase;
+      letter-spacing: 0.04em;
+      margin-top: 0.35rem;
+      font-weight: 600;
+    }
+
+    .stat-langs {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 0.35rem;
+      justify-content: center;
+      align-items: center;
+      min-height: 28px;
+    }
+
+    .lang-pill {
+      font-size: 0.76rem;
+      padding: 0.15rem 0.45rem;
+      border-radius: 6px;
+      background: var(--btn-sec-bg);
+      color: var(--text-main);
+      border: 1px solid var(--border-color);
+      font-weight: 500;
+      display: inline-flex;
+      align-items: center;
+      gap: 0.25rem;
+    }
+
+    .lang-pill strong {
+      color: var(--accent);
+    }
+  </style>
+</head>
+
+<body>
+  <div class="header-row">
+    <div>
+      <h1>AI Code Reviewer</h1>
+      <p class="sub">Paste your code and get instant bugs, security, performance, and best-practice feedback.</p>
+    </div>
+    <button type="button" class="theme-toggle-btn" id="theme-btn" aria-label="Toggle light or dark theme">
+      <span id="theme-icon">🌙</span> <span id="theme-text">Dark</span>
+    </button>
+  </div>
+ 
+  <div class="stats-bar" id="stats-bar" style="display: none;">
+    <div class="stat-card">
+      <div class="stat-val" id="stat-total">0</div>
+      <div class="stat-lbl">Reviews Analyzed</div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-val" id="stat-score">0.0</div>
+      <div class="stat-lbl">Avg Quality Score</div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-val" id="stat-issues">0</div>
+      <div class="stat-lbl">Issues Caught</div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-langs" id="stat-langs"></div>
+      <div class="stat-lbl">Reviews by Language</div>
+    </div>
+  </div>
+
+  <form id="form">
+    <div class="form-toolbar">
+      <select id="language" aria-label="Programming Language">
+        <option value="Python">Python</option>
+        <option value="Java">Java</option>
+        <option value="JavaScript">JavaScript</option>
+        <option value="C++">C++</option>
+      </select>
+      <button type="button" id="btn-sample" class="btn-secondary" title="Load example snippet for selected language">Load Sample</button>
+      <button type="button" id="btn-clear" class="btn-secondary" title="Clear code editor">Clear</button>
+      <span class="count" id="count">0 / 20,000</span>
+    </div>
+
+    <div class="editor-wrapper">
+      <textarea id="code" placeholder="Paste your code here for review..."></textarea>
+    </div>
+
+    <div class="form-actions">
+      <button type="submit" id="btn">Review Code</button>
+    </div>
+  </form>
+
+  <div id="result" aria-live="polite"></div>
+
+  <div id="history-wrap">
+    <h2>Past reviews</h2>
+    <div id="history"></div>
+  </div>
+
+  <!-- CodeMirror Scripts -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.18/codemirror.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.18/addon/edit/matchbrackets.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.18/addon/edit/closebrackets.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.18/addon/selection/active-line.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.18/addon/display/placeholder.min.js"></script>
+
+  <!-- CodeMirror Modes -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.18/mode/python/python.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.18/mode/clike/clike.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.18/mode/javascript/javascript.min.js"></script>
+
+  <script>
+    const form = document.getElementById("form");
+    const codeEl = document.getElementById("code");
+    const langEl = document.getElementById("language");
+    const btn = document.getElementById("btn");
+    const btnSample = document.getElementById("btn-sample");
+    const btnClear = document.getElementById("btn-clear");
+    const result = document.getElementById("result");
+    const count = document.getElementById("count");
+    const themeBtn = document.getElementById("theme-btn");
+    const themeIcon = document.getElementById("theme-icon");
+    const themeText = document.getElementById("theme-text");
+
+    const SECTIONS = [
+      ["bugs", "Bugs"],
+      ["security", "Security Issues"],
+      ["performance", "Performance"],
+      ["best_practices", "Best Practices"],
+    ];
+
+    const MODE_MAP = {
+      "Python": "python",
+      "Java": "text/x-java",
+      "JavaScript": "javascript",
+      "C++": "text/x-c++src"
+    };
+
+    const SAMPLE_SNIPPETS = {
+      "Python": `def calculate(a, b)\n    return a + b\n\nprint(calculate(10, 20))`,
+      "Java": `public class Calculator {\n    public static int divide(int a, int b) {\n        return a / b;\n    }\n\n    public static void main(String[] args) {\n        System.out.println(divide(10, 0));\n    }\n}`,
+      "JavaScript": `function authenticate(username, password) {\n  if (username == "admin" && password == "admin123") {\n    return true;\n  }\n  return false;\n}\n\nconsole.log(authenticate("admin", "admin123"));`,
+      "C++": `#include <iostream>\n\nint* createArray() {\n    int arr[5] = {1, 2, 3, 4, 5};\n    return arr; // Returning pointer to local array\n}\n\nint main() {\n    int* p = createArray();\n    std::cout << p[0] << std::endl;\n    return 0;\n}`
+    };
+
+    // Initialize CodeMirror editor
+    const editor = CodeMirror.fromTextArea(codeEl, {
+      lineNumbers: true,
+      mode: MODE_MAP[langEl.value] || "python",
+      theme: "default",
+      matchBrackets: true,
+      autoCloseBrackets: true,
+      styleActiveLine: true,
+      indentUnit: 4,
+      tabSize: 4,
+      indentWithTabs: false,
+      lineWrapping: true,
+      placeholder: "Paste your code here for review..."
+    });
+
+    // Dark Mode Handling
+    function applyTheme(isDark) {
+      if (isDark) {
+        document.body.classList.add("dark-mode");
+        themeIcon.textContent = "☀️";
+        themeText.textContent = "Light";
+        editor.setOption("theme", "dracula");
+      } else {
+        document.body.classList.remove("dark-mode");
+        themeIcon.textContent = "🌙";
+        themeText.textContent = "Dark";
+        editor.setOption("theme", "default");
+      }
+    }
+
+    const savedTheme = localStorage.getItem("aipcr-theme");
+    const prefersDark = window.matchMedia && window.matchMedia("(prefers-color-scheme: dark)").matches;
+    const initialDark = savedTheme ? savedTheme === "dark" : prefersDark;
+    applyTheme(initialDark);
+
+    themeBtn.addEventListener("click", () => {
+      const isDark = document.body.classList.contains("dark-mode");
+      const nextDark = !isDark;
+      localStorage.setItem("aipcr-theme", nextDark ? "dark" : "light");
+      applyTheme(nextDark);
+    });
+
+    // Character Counter
+    function updateCount() {
+      const len = editor.getValue().length;
+      count.textContent = len.toLocaleString() + " / 20,000";
+      if (len > 20000) {
+        count.classList.add("warn");
+      } else {
+        count.classList.remove("warn");
+      }
+    }
+    editor.on("change", updateCount);
+
+    // Language Change
+    langEl.addEventListener("change", () => {
+      const mode = MODE_MAP[langEl.value] || "python";
+      editor.setOption("mode", mode);
+    });
+
+    // Sample Code & Clear
+    btnSample.addEventListener("click", () => {
+      const sample = SAMPLE_SNIPPETS[langEl.value] || "";
+      editor.setValue(sample);
+      editor.focus();
+    });
+
+    btnClear.addEventListener("click", () => {
+      editor.setValue("");
+      editor.focus();
+    });
+
+    // Line Highlight Interaction
+    let activeHighlightLine = null;
+    function highlightLine(lineNum) {
+      if (!lineNum || lineNum < 1) return;
+      const zeroLine = lineNum - 1;
+      editor.focus();
+      editor.setCursor({ line: zeroLine, ch: 0 });
+      editor.scrollIntoView({ line: zeroLine, ch: 0 }, 100);
+
+      if (activeHighlightLine !== null) {
+        editor.removeLineClass(activeHighlightLine, "background", "line-flash");
+      }
+      editor.addLineClass(zeroLine, "background", "line-flash");
+      activeHighlightLine = zeroLine;
+
+      setTimeout(() => {
+        if (activeHighlightLine === zeroLine) {
+          editor.removeLineClass(zeroLine, "background", "line-flash");
+          activeHighlightLine = null;
+        }
+      }, 1600);
+
+      // Scroll editor into view if needed
+      form.scrollIntoView({ behavior: "smooth", block: "nearest" });
+    }
+
+    // Export helpers
+    function downloadBlob(filename, content, type) {
+      const blob = new Blob([content], { type: type });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = filename;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+    }
+
+    function exportTxt(r, lang, code) {
+      const sep = "=".repeat(62);
+      const subSep = "-".repeat(62);
+      let txt = `${sep}\nAI CODE REVIEW REPORT\n${sep}\n`;
+      txt += `Language:            ${lang}\n`;
+      txt += `Date & Time:         ${new Date().toLocaleString()}\n`;
+      txt += `Code Quality Rating: ${r.rating} / 10\n`;
+      txt += `${sep}\n\n`;
+      txt += `OVERVIEW & SUMMARY\n${r.summary}\n\n`;
+
+      for (const [key, title] of SECTIONS) {
+        const items = r[key] || [];
+        txt += `${subSep}\n${title.toUpperCase()} (${items.length})\n${subSep}\n`;
+        if (!items.length) {
+          txt += `No issues detected in this category.\n\n`;
+        } else {
+          items.forEach((it, idx) => {
+            txt += `[${idx + 1}] ${it.title} [${it.severity.toUpperCase()}]${it.line ? ` (Line ${it.line})` : ""}\n`;
+            txt += `    Explanation: ${it.explanation}\n`;
+            txt += `    Suggested Fix: ${it.suggestion}\n\n`;
+          });
+        }
+      }
+
+      txt += `${subSep}\nSUBMITTED SOURCE CODE\n${subSep}\n`;
+      txt += `${code}\n\n${sep}\nGenerated by AI Code Reviewer\n${sep}\n`;
+
+      downloadBlob(`code-review-${lang.toLowerCase()}-${Date.now()}.txt`, txt, "text/plain");
+    }
+
+    function exportMarkdown(r, lang, code) {
+      let md = `# AI Code Review Report\n\n`;
+      md += `- **Language**: ${lang}\n`;
+      md += `- **Date**: ${new Date().toLocaleString()}\n`;
+      md += `- **Code Quality Rating**: ${r.rating}/10\n\n`;
+      md += `## Overview\n${r.summary}\n\n`;
+
+      for (const [key, title] of SECTIONS) {
+        const items = r[key] || [];
+        md += `## ${title} (${items.length})\n\n`;
+        if (!items.length) {
+          md += `*Nothing found.*\n\n`;
+        } else {
+          for (const it of items) {
+            md += `### ${it.title} [${it.severity.toUpperCase()}]${it.line ? ` (Line ${it.line})` : ""}\n`;
+            md += `${it.explanation}\n\n`;
+            md += `**Suggested Fix:**\n\`\`\`\n${it.suggestion}\n\`\`\`\n\n`;
+          }
+        }
+      }
+
+      md += `## Reviewed Code\n\`\`\`${lang.toLowerCase()}\n${code}\n\`\`\`\n`;
+      downloadBlob(`code-review-${lang.toLowerCase()}-${Date.now()}.md`, md, "text/markdown");
+    }
+
+    function exportJson(r) {
+      const jsonStr = JSON.stringify(r, null, 2);
+      downloadBlob(`code-review-${Date.now()}.json`, jsonStr, "application/json");
+    }
+
+    // Build DOM with textContent only to prevent XSS
+    function el(tag, cls, text) {
+      const e = document.createElement(tag);
+      if (cls) e.className = cls;
+      if (text !== undefined) e.textContent = text;
+      return e;
+    }
+
+    function showStatus(text, isError) {
+      result.replaceChildren(el("div", "status" + (isError ? " error" : ""), text));
+    }
+
+    function renderReview(r, code) {
+      const currentCode = code !== undefined ? code : editor.getValue();
+      const frag = document.createDocumentFragment();
+
+      if (!r.language_matches) {
+        frag.append(el("div", "warn", "⚠️ This code doesn't look like " + langEl.value + ". The review may be less accurate."));
+      }
+
+      const overviewWrap = el("div", "overview-wrapper");
+      const overview = el("div", "overview");
+      const tier = r.rating >= 8 ? "good" : r.rating >= 5 ? "ok" : "bad";
+      overview.append(el("div", "rating " + tier, r.rating + "/10"), el("p", "", r.summary));
+      overviewWrap.append(overview);
+
+      // Export report toolbar
+      const toolbar = el("div", "result-toolbar");
+      const txtBtn = el("button", "btn-secondary", "📄 Export Text (.txt)");
+      txtBtn.type = "button";
+      txtBtn.title = "Download summary report as plain text file";
+      txtBtn.addEventListener("click", () => exportTxt(r, langEl.value, currentCode));
+
+      const mdBtn = el("button", "btn-secondary", "📥 Export Markdown");
+      mdBtn.type = "button";
+      mdBtn.title = "Download formatted markdown report";
+      mdBtn.addEventListener("click", () => exportMarkdown(r, langEl.value, currentCode));
+
+      const jsonBtn = el("button", "btn-secondary", "💾 Export JSON");
+      jsonBtn.type = "button";
+      jsonBtn.title = "Download raw JSON report";
+      jsonBtn.addEventListener("click", () => exportJson(r));
+
+      toolbar.append(txtBtn, mdBtn, jsonBtn);
+      overviewWrap.append(toolbar);
+      frag.append(overviewWrap);
+
+      for (const [key, title] of SECTIONS) {
+        const items = r[key] || [];
+        const h = el("h2", "", title + " ");
+        h.append(el("span", "n", "(" + items.length + ")"));
+        frag.append(h);
+
+        if (!items.length) {
+          frag.append(el("div", "none", "Nothing found."));
+          continue;
+        }
+
+        for (const it of items) {
+          const card = el("div", "card " + it.severity);
+          const head = el("div", "card-head");
+          head.append(el("strong", "", it.title));
+
+          if (it.line) {
+            const linePill = el("span", "pill line-pill", "line " + it.line);
+            linePill.title = "Click to jump to line " + it.line + " in code editor";
+            linePill.addEventListener("click", () => highlightLine(it.line));
+            head.append(linePill);
+          }
+
+          head.append(el("span", "pill " + it.severity, it.severity));
+          card.append(head, el("p", "", it.explanation), el("p", "fix", "Fix: " + it.suggestion));
+          frag.append(card);
+        }
+      }
+
+      result.replaceChildren(frag);
+    }
+
+    // ---------- History ----------
+    const historyEl = document.getElementById("history");
+
+    function tierOf(r) { return r >= 8 ? "good" : r >= 5 ? "ok" : "bad"; }
+
+    async function loadHistory() {
+      try {
+        const res = await fetch("/api/history");
+        const data = await res.json();
+        const items = data.items || [];
+        if (!items.length) {
+          historyEl.replaceChildren(el("div", "none", "No reviews yet. Your reviews will show up here."));
+          return;
+        }
+        const frag = document.createDocumentFragment();
+        for (const it of items) {
+          const row = el("div", "hist-item");
+          row.tabIndex = 0;
+          const main = el("div", "hist-main");
+          main.append(
+            el("div", "t", it.language + " · " + new Date(it.created_at).toLocaleString()),
+            el("div", "s", it.summary)
+          );
+          const del = el("button", "del", "×");
+          del.type = "button";
+          del.title = "Delete this review";
+          del.setAttribute("aria-label", "Delete review");
+          del.addEventListener("click", async (e) => {
+            e.stopPropagation();
+            if (!confirm("Delete this review?")) return;
+            await fetch("/api/history/" + it.id, { method: "DELETE" });
+            loadHistory();
+            loadStats();
+          });
+          row.append(el("div", "mini " + tierOf(it.rating), it.rating + "/10"), main, del);
+          const open = () => openReview(it.id);
+          row.addEventListener("click", open);
+          row.addEventListener("keydown", (e) => { if (e.key === "Enter") open(); });
+          frag.append(row);
+        }
+        historyEl.replaceChildren(frag);
+      } catch (err) {
+        historyEl.replaceChildren(el("div", "none", "Couldn't load history."));
+      }
+    }
+
+    async function loadStats() {
+      try {
+        const res = await fetch("/api/stats");
+        const data = await res.json();
+        const bar = document.getElementById("stats-bar");
+        if (!data || data.total_reviews === 0) {
+          bar.style.display = "none";
+          return;
+        }
+        bar.style.display = "grid";
+        document.getElementById("stat-total").textContent = data.total_reviews;
+        document.getElementById("stat-score").textContent = data.avg_rating + " / 10";
+
+        const totalIssues = (data.issues.bugs || 0) +
+                            (data.issues.security || 0) +
+                            (data.issues.performance || 0) +
+                            (data.issues.best_practices || 0);
+        document.getElementById("stat-issues").textContent = totalIssues;
+
+        const langsContainer = document.getElementById("stat-langs");
+        langsContainer.replaceChildren();
+        for (const [lang, cnt] of Object.entries(data.languages || {})) {
+          const pill = document.createElement("span");
+          pill.className = "lang-pill";
+          pill.textContent = `${lang}: `;
+          const strong = document.createElement("strong");
+          strong.textContent = cnt;
+          pill.appendChild(strong);
+          langsContainer.appendChild(pill);
+        }
+      } catch (err) {
+        // silent fail
+      }
+    }
+
+    async function openReview(id) {
+      try {
+        const res = await fetch("/api/history/" + id);
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.error || "Request failed");
+        langEl.value = data.language;
+        editor.setOption("mode", MODE_MAP[data.language] || "python");
+        editor.setValue(data.code || "");
+        renderReview(data.review, data.code);
+        result.scrollIntoView({ behavior: "smooth", block: "start" });
+      } catch (err) {
+        showStatus("Error: " + err.message, true);
+      }
+    }
+
+    form.addEventListener("submit", async (e) => {
+      e.preventDefault();
+      const code = editor.getValue().trim();
+      if (!code) {
+        showStatus("Please paste some code to review.", true);
+        return;
+      }
+      if (code.length > 20000) {
+        showStatus("Code is too long (maximum 20,000 characters).", true);
+        return;
+      }
+
+      btn.disabled = true;
+      btn.textContent = "Analyzing...";
+      showStatus("Analyzing code with AI...", false);
+
+      try {
+        const res = await fetch("/api/review", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ code, language: langEl.value }),
+        });
+        const data = await res.json();
+        if (!res.ok || data.error) throw new Error(data.error || "Request failed");
+        renderReview(data.review, code);
+        loadHistory();
+        loadStats();
+      } catch (err) {
+        showStatus("Error: " + err.message, true);
+      } finally {
+        btn.disabled = false;
+        btn.textContent = "Review Code";
+      }
+    });
+
+    // Initial history & stats load
+    loadHistory();
+    loadStats();
+    // Trigger editor refresh after initial render layout settles
+    setTimeout(() => editor.refresh(), 100);
+  </script>
+</body>
+
+</html>
